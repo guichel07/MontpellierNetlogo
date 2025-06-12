@@ -1,12 +1,74 @@
-set 
+;; je fais appel à l'extension GIS pour gerer les fichiers gis
+extensions [gis]
+
+
+;; je declare  une variable global pour le jeu de donnes 
+
+globals [my-dataset]
+
+
+;;  Reinitatliser 
+
+to setup 
+  
+  ;; Pour tout nettoyer 
+  clear-all 
+  
+  ;; Pour remmettre le compteur à zero de tout les simulations 
+  reset-ticks
+  
+end 
+
+
+to load-map-data [path]
+  
+  ;;recuperer les donnes puis le charge dans my-dataset
+  
+  set my-dataset gis:load-dataset path
+  
+  ;; là j'adapte les données au monde de netelogo
+  
+  gis:set-world-envelope gis:envelope-of my-dataset
+  
+  let features gis:feature-list-of my-dataset
+  
+  let first-feature first features
+  
+  print "Liste des propriétés de la première feature :"
+  
+  print first-feature
+  
+  
+  
+end
+
+to draw-map-features [data]
+  
+  let features gis:feature-list-of data
+  gis:set-drawing-color blue
+
+  ; Utilisation de while pour parcourir les features
+  let i 0
+  while [i < length features] [
+    let current-feature item i features
+    gis:fill current-feature 1.0
+    set i i + 1
+  ]
+
+  gis:set-drawing-color white
+  gis:draw data 0.5
+end
+
+
+
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
 10
-649
-470
-16
-16
+1065
+886
+32
+32
 13.0
 1
 10
@@ -17,15 +79,66 @@ GRAPHICS-WINDOW
 1
 1
 1
--16
-16
--16
-16
+-32
+32
+-32
+32
 0
 0
 1
 ticks
 30.0
+
+BUTTON
+33
+89
+96
+122
+setup
+setup
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+37
+193
+149
+226
+load-map-data
+load-map-data \"bigData/export_route_mtp.shp\"
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+19
+289
+158
+322
+draw-map-features
+draw-map-features my-dataset
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
