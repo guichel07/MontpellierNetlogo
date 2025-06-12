@@ -43,21 +43,64 @@ to load-map-data [path]
 end
 
 to draw-map-features [data]
-  
   let features gis:feature-list-of data
-  gis:set-drawing-color blue
 
-  ; Utilisation de while pour parcourir les features
   let i 0
   while [i < length features] [
     let current-feature item i features
-    gis:fill current-feature 1.0
+    
+    let vertex-lists gis:vertex-lists-of current-feature
+
+    let j 0
+    while [j < length vertex-lists] [
+      let vertex-list item j vertex-lists
+
+      let k 0
+      
+      let previous-turtle nobody
+      
+      while [k < length vertex-list] [
+        let v item k vertex-list
+        
+        ;; gis:location-of retourne une liste [x y]
+        let loc gis:location-of v
+        
+        let x item 0 loc
+        let y item 1 loc
+        
+        create-turtles 1 [
+          setxy x y
+          set shape "circle"
+          set color green
+          set size 0.2
+          
+          ;; On stocke la tortue créée dans une variable globale locale
+          set previous-turtle self
+        ]
+        
+        if previous-turtle != nobody and k > 0 [
+          ask previous-turtle [
+            create-link-with turtle (who - 1)
+          ]
+        ]
+        
+        set k k + 1
+      ]
+      
+      set j j + 1
+    ]
+    
     set i i + 1
   ]
 
-  gis:set-drawing-color white
-  gis:draw data 0.5
 end
+
+to draw
+   gis:set-drawing-color white
+   gis:draw my-dataset 0.1
+end
+
+
 
 
 
@@ -112,7 +155,7 @@ BUTTON
 149
 226
 load-map-data
-load-map-data \"bigData/export_route_mtp.shp\"
+load-map-data \"middleMap/middleMap.shp\"
 NIL
 1
 T
@@ -130,6 +173,23 @@ BUTTON
 322
 draw-map-features
 draw-map-features my-dataset
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+53
+156
+117
+190
+draw
+draw
 NIL
 1
 T
