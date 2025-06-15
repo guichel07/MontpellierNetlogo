@@ -20,150 +20,291 @@ to setup
 end 
 
 
-to load-map-data [path]
-  
-  ;;recuperer les donnes puis le charge dans my-dataset
-  
-  set my-dataset gis:load-dataset path
-  
-  ;; là j'adapte les données au monde de netelogo
-  
-  gis:set-world-envelope gis:envelope-of my-dataset
-  
-  let features gis:feature-list-of my-dataset
-  
-  let first-feature first features
-  
-  print "Liste des propriétés de la première feature :"
-  
-  print first-feature
-  
-end
-
-
-to-report load-sommets [path]
-  ;; charger le fichier shapefile des sommets
-  set my-data-sommets gis:load-dataset path
-
-  ;; adapter l'enveloppe du monde à ces données
-  gis:set-world-envelope gis:envelope-of my-data-sommets
-
-  ;; récupérer la liste des entités (points)
-  let features gis:feature-list-of my-data-sommets
-  
-  report features
-  
-end
 
 
 
-to-report extract-sommets-with-id [path]
+;; La fonction : 
+;;Charge le système de coordonnées à partir du fichier .prj
+;; Charge le jeu de données GIS à partir du fichier shapefile (.shp)
+;; Ajuste les dimensions du monde NetLogo pour correspondre à l'étendue des données chargées
+;; Récupère la liste de toutes les entités géographiques (features) du dataset
+;; Renvoie la liste des features comme résultat de la procédure
+
+to-report extract-features [path]
   
-  let resultat []
-  let features load-sommets path
+  let path-shp word path ".shp"
   
-  let nb-features length features
+  let path-prj word path ".prj"
+  
+  gis:load-coordinate-system path-prj
+  
+  let dataset gis:load-dataset path-shp
+  
+  gis:set-world-envelope gis:envelope-of dataset
+  
+  let features gis:feature-list-of dataset
+  
+  print word "Nbrs-features :> " length features
+  
+  report features 
+  
+end 
+
+;; La fonction ci extrait les coordonées de chaque ligne et retourne le tout dans une liste en enlevant les doublons 
+
+to-report extract-vertex-from-lines [path]
+  
+  let my-list []
+  
+  let features extract-features path 
+  
   let i 0
- 
   
-  while [i < nb-features] [
-    let current-feature item i features
-    let vertex-lists gis:vertex-lists-of current-feature
-    
-    let id gis:property-value current-feature "ID"
-    
-    print id
-    
-    ;; Vérification avec if
-    if not empty? vertex-lists [
-      let vertex-list first vertex-lists
-      
-      if not empty? vertex-list [
-        let vertex first vertex-list
-        let coords gis:location-of vertex
-        
-        if (length coords) >= 2 [
-          let x item 0 coords
-          let y item 1 coords
-          
-          set resultat lput (list id  x y) resultat
-          
-          create-turtles 1 [
-          setxy x y
-          set shape "circle"
-          set color green
-          set size 0.3
-       ]
-        ]
-      ]
-    ]
-    
-    set i i + 1
-  ]
-  report resultat
-end
-
-  
-  
-to draw-map-features [data]
-  let features gis:feature-list-of data
-
-  let i 0
   while [i < length features] [
-    let current-feature item i features
     
-    let vertex-lists gis:vertex-lists-of current-feature
-
+    let feature item i features
+    
+    let vertex-lists gis:vertex-lists-of feature
+    
     let j 0
-    while [j < length vertex-lists] [
+    
+    while [j < length vertex-lists][
+    
       let vertex-list item j vertex-lists
-
+      
       let k 0
       
-      let previous-turtle nobody
+      while [k < length vertex-list] [
+        
+        let vertex item k vertex-list
+        
+        let loc gis:location-of vertex
+        
+        ifelse empty? loc [
+   
+          print "pas de coordonnés"
+        ] [
+          
+          let x item 0 loc
+        
+          let y item 1 loc
+          
+          set my-list lput (list x y) my-list
+        
+        ]
+        
+        
+      set k k + 1
+      ]
+    
+    set j j + 1
+    ]
+   
+  set i i + 1 
+  ]
+  
+  let my-list-unique remove-duplicates my-list
+  
+  print word "Nbres point :> " length my-list
+  
+  print word "Nbres points uniques :> "  length my-list-unique
+  
+  report my-list
+  
+end
+
+;; A partir d'une liste des coordonnes la fonction trace des turtles et  et retourne une  
+to-report draw-turtles-from-coord-list [coords]
+  
+  let turtle-list []
+  let i 0
+  while [i < length coords][
+  
+     let coord item i coords
+     
+     let x item 0 coord
+     
+     let y item 1 coord
+     
+     create-turtles 1 [
+     
+       setxy x y 
+       set shape "circle"
+       set color green
+       set size 0.1
+       
+       let turtle-id who
+       set turtle-list lput (list turtle-id self x y) turtle-list
+     
+     ]
+  set i i + 1 
+  ]
+  
+  print word "turtle-list :> " turtle-list
+  
+  report turtle-list
+  
+end
+
+to draw-link [turtle-list path]
+  
+  
+  let features extract-features path 
+  
+  let i 0
+  
+  while [i < length features] [
+    
+    let feature item i features
+    
+    let vertex-lists gis:vertex-lists-of feature
+    
+    let j 0
+    
+    while [j < length vertex-lists][
+    
+      let vertex-list item j vertex-lists
+      
+      let k 0
       
       while [k < length vertex-list] [
-        let v item k vertex-list
         
-        ;; gis:location-of retourne une liste [x y]
-        let loc gis:location-of v
+
+         if (k + 1 < length vertex-list) [
+           
+           let vertex1 item k vertex-list
         
-        let x item 0 loc
-        let y item 1 loc
+           let vertex2 item (k + 1)  vertex-list
         
-        create-turtles 1 [
-          setxy x y
-          set shape "circle"
-          set color green
-          set size 0.3
+           let loc1 gis:location-of vertex1
+        
+           let loc2 gis:location-of vertex2
+        
+           ifelse ((empty? loc1) or (empty? loc2)) [
+   
+              print "pas de coordonnés"
+           ] [
           
-          ;; On stocke la tortue créée dans une variable globale locale
-          set previous-turtle self
-        ]
+              let x1 item 0 loc1
         
-        if previous-turtle != nobody and k > 0 [
-          ask previous-turtle [
-            create-link-with turtle (who - 1)
-          ]
-        ]
+              let y1 item 1 loc1
+
+              let x2 item 0 loc2
         
-        set k k + 1
+              let y2 item 1 loc2
+          
+              let turtle1 find-turtle turtle-list x1 y1
+          
+              let turtle2 find-turtle turtle-list x2 y2
+              
+              ask turtle1 [
+                
+                create-link-with turtle2
+              ]
+
+        ]
+         
+         ]
+      set k k + 1
       ]
-      
-      set j j + 1
-    ]
     
-    set i i + 1
+    set j j + 1
+    ]
+   
+  set i i + 1 
   ]
+  
 end
 
-to draw
-   gis:set-drawing-color white
-   gis:draw my-dataset 0.1
-end
+to-report find-turtle [turtle-list x y]
+  
+      let a 0
+      while [a < length turtle-list][
+            
+             let coord-turtle item a turtle-list
+             
+             let trl item 1 coord-turtle
+             
+             let X1 item 2 coord-turtle
+               
+             let Y1 item 3 coord-turtle
+               
+             if (x = X1) and (y = Y1)[
+                 
+                  print "J'ai trouvé "
+               
+                  report trl
+             ]
+             
+          set a a + 1
+     ]
+  
+end 
+
+
+to export-vertices-as-points [path]
+  
+  let features extract-features path
+  
+  file-open "data.csv" 
+  file-print "feature-fid,x,y"
+  
+  let i 0
+  
+  while [i < length features] [
+    
+    let feature item i features
+    
+    let feature-id gis:property-value feature "ID"
+    
+    let vertex-lists gis:vertex-lists-of feature
+    
+    let j 0
+    
+    while [j < length vertex-lists][
+    
+      let vertex-list item j vertex-lists
+      
+      let k 0
+      
+      while [k < length vertex-list] [
+        
+        let vertex item k vertex-list
+        
+        let loc gis:location-of vertex
+        
+        ifelse empty? loc [
+   
+          print "pas de coordonnés"
+        ] [
+          
+          let x item 0 loc
+        
+          let y item 1 loc
+          
+          file-print(word feature-id ","x","y)
+          
+          print feature-id
+          print word x y
+
+        
+        ]
+        
+        
+      set k k + 1
+      ]
+    
+    set j j + 1
+    ]
+   
+  set i i + 1 
+  ]
+end 
 
 
 
+  
+  
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
@@ -193,80 +334,46 @@ ticks
 30.0
 
 BUTTON
-33
-89
-96
-122
-setup
-setup
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-37
-193
-149
-226
-load-map-data
-load-map-data \"middleMap/middleMap.shp\"
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-19
-289
-158
-322
-draw-map-features
-draw-map-features my-dataset
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-53
-156
-117
-190
-draw
-draw
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
 90
 393
-198
+214
 426
-load-sommets
-print extract-sommets-with-id \"extractMapSommets/extractMapSommets.shp\"
+extract-features
+\ndraw-link draw-turtles-from-coord-list extract-vertex-from-lines \"FullMap/FullMap\" \"FullMap/FullMap\"
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+9
+33
+72
+66
+setup
+setup
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+10
+117
+314
+150
+export-vertices-as-points
+export-vertices-as-points \"middleMap/middleMap\"
 NIL
 1
 T
