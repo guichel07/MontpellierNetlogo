@@ -4,7 +4,7 @@ extensions [gis]
 
 ;; je declare  une variable global pour le jeu de donnes 
 
-globals [my-dataset]
+globals [my-dataset my-data-sommets]
 
 
 ;;  Reinitatliser 
@@ -38,10 +38,73 @@ to load-map-data [path]
   
   print first-feature
   
+end
+
+
+to-report load-sommets [path]
+  ;; charger le fichier shapefile des sommets
+  set my-data-sommets gis:load-dataset path
+
+  ;; adapter l'enveloppe du monde à ces données
+  gis:set-world-envelope gis:envelope-of my-data-sommets
+
+  ;; récupérer la liste des entités (points)
+  let features gis:feature-list-of my-data-sommets
   
+  report features
   
 end
 
+
+
+to-report extract-sommets-with-id [path]
+  
+  let resultat []
+  let features load-sommets path
+  
+  let nb-features length features
+  let i 0
+ 
+  
+  while [i < nb-features] [
+    let current-feature item i features
+    let vertex-lists gis:vertex-lists-of current-feature
+    
+    let id gis:property-value current-feature "ID"
+    
+    print id
+    
+    ;; Vérification avec if
+    if not empty? vertex-lists [
+      let vertex-list first vertex-lists
+      
+      if not empty? vertex-list [
+        let vertex first vertex-list
+        let coords gis:location-of vertex
+        
+        if (length coords) >= 2 [
+          let x item 0 coords
+          let y item 1 coords
+          
+          set resultat lput (list id  x y) resultat
+          
+          create-turtles 1 [
+          setxy x y
+          set shape "circle"
+          set color green
+          set size 0.3
+       ]
+        ]
+      ]
+    ]
+    
+    set i i + 1
+  ]
+  report resultat
+end
+
+  
+  
 to draw-map-features [data]
   let features gis:feature-list-of data
 
@@ -72,7 +135,7 @@ to draw-map-features [data]
           setxy x y
           set shape "circle"
           set color green
-          set size 0.2
+          set size 0.3
           
           ;; On stocke la tortue créée dans une variable globale locale
           set previous-turtle self
@@ -92,15 +155,12 @@ to draw-map-features [data]
     
     set i i + 1
   ]
-
 end
 
 to draw
    gis:set-drawing-color white
    gis:draw my-dataset 0.1
 end
-
-
 
 
 
@@ -190,6 +250,23 @@ BUTTON
 190
 draw
 draw
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+90
+393
+198
+426
+load-sommets
+print extract-sommets-with-id \"extractMapSommets/extractMapSommets.shp\"
 NIL
 1
 T
