@@ -1,305 +1,284 @@
 ;; je fais appel à l'extension GIS pour gerer les fichiers gis
-extensions [gis]
+extensions [gis table]
 
 
 ;; je declare  une variable global pour le jeu de donnes 
 
-globals [my-dataset my-data-sommets]
+globals [my-features my-unique-vertices my-turtle-table my-t]
 
 
 ;;  Reinitatliser 
 
 to setup 
   
-  ;; Pour tout nettoyer 
-  clear-all 
+  ;; Réinitialisation complète de l'environnement
+  clear-all      ; Efface tout (agents, plots, etc.)
+  reset-ticks    ; Remet le compteur à 0
   
-  ;; Pour remmettre le compteur à zero de tout les simulations 
-  reset-ticks
+  ;; Réinitialisation spécifique des variables globales GIS
+  set my-features []
+  
+  set my-unique-vertices []
+  
+  set my-turtle-table []
   
 end 
 
 
 
 
+;;La fonction si set les valeur de my-dataset et my-features 
 
-;; La fonction : 
-;;Charge le système de coordonnées à partir du fichier .prj
-;; Charge le jeu de données GIS à partir du fichier shapefile (.shp)
-;; Ajuste les dimensions du monde NetLogo pour correspondre à l'étendue des données chargées
-;; Récupère la liste de toutes les entités géographiques (features) du dataset
-;; Renvoie la liste des features comme résultat de la procédure
-
-to-report extract-features [path]
+to-report get-features-from-dataset [path]
+  
+  let features []
   
   let path-shp word path ".shp"
   
   let path-prj word path ".prj"
   
-  gis:load-coordinate-system path-prj
+  if ( not file-exists? path-shp) or ( not file-exists? path-prj) [
+     
+     let paths (word (word path-shp "  et   " ) path-prj)
+     
+     print word "Verifiez l'un des deux paths :> " paths
+     
   
-  let dataset gis:load-dataset path-shp
+  ]
+  carefully [
+    
+    gis:load-coordinate-system path-prj
+    
+    let dataset gis:load-dataset path-shp
+    
+    gis:set-world-envelope gis:envelope-of dataset
+    
+    set features gis:feature-list-of dataset
+    
+    print word "Nbrs-features :> " length features
+    
+    
+    
+  ]
   
-  gis:set-world-envelope gis:envelope-of dataset
+  [
+    print (word "ERREUR : " error-message)
+    
+  ]
   
-  let features gis:feature-list-of dataset
-  
-  print word "Nbrs-features :> " length features
-  
-  report features 
-  
+  report features
 end 
 
-;; La fonction ci extrait les coordonées de chaque ligne et retourne le tout dans une liste en enlevant les doublons 
+;; Je vais à partir de features extraire les points des lignes et supprimer les doublons et retourne la liste unique
 
-to-report extract-vertex-from-lines [path]
+to-report extract-vertex-from-features [features]
   
   let my-list []
   
-  let features extract-features path 
-  
-  let i 0
-  
-  while [i < length features] [
+  foreach features [
     
-    let feature item i features
+    let feature ?
     
-    let vertex-lists gis:vertex-lists-of feature
-    
-    let j 0
-    
-    while [j < length vertex-lists][
-    
-      let vertex-list item j vertex-lists
+    foreach  gis:vertex-lists-of feature [
       
-      let k 0
+      let vertex-list ?
       
-      while [k < length vertex-list] [
+      foreach vertex-list [
         
-        let vertex item k vertex-list
+        let loc gis:location-of ?
         
-        let loc gis:location-of vertex
-        
-        ifelse empty? loc [
-   
-          print "pas de coordonnés"
-        ] [
-          
-          let x item 0 loc
-        
-          let y item 1 loc
-          
-          set my-list lput (list x y) my-list
-        
+        if not empty? loc [
+          set my-list fput (list (item 0 loc) (item 1 loc)) my-list
         ]
         
-        
-      set k k + 1
       ]
-    
-    set j j + 1
+      
     ]
    
-  set i i + 1 
   ]
   
   let my-list-unique remove-duplicates my-list
   
-  print word "Nbres point :> " length my-list
+  print word "list avec doublons :> " length my-list
+  print word "list sans doublons :> " length my-list-unique
   
-  print word "Nbres points uniques :> "  length my-list-unique
-  
-  report my-list
+  report my-list-unique
   
 end
 
-;; A partir d'une liste des coordonnes la fonction trace des turtles et  et retourne une  
-to-report draw-turtles-from-coord-list [coords]
+;; la fonction permet dans un premier temps creer des turtles et à la fin retourner un table de turtles
+
+to-report get-create-turtles-from-coords [coords]
   
-  let turtle-list []
-  let i 0
-  while [i < length coords][
+  let turtle-table table:make
   
-     let coord item i coords
-     
-     let x item 0 coord
-     
-     let y item 1 coord
-     
-     create-turtles 1 [
-     
-       setxy x y 
-       set shape "circle"
-       set color green
-       set size 0.1
-       
-       let turtle-id who
-       set turtle-list lput (list turtle-id self x y) turtle-list
-     
-     ]
-  set i i + 1 
+  create-ordered-turtles length coords [
+
+    set shape "circle"
+    
+    set color green
+    
+    set size 0.2
+   
+    let coord item who coords
+    
+    let x item 0 coord
+    
+    let y item 1 coord 
+    
+    setxy x y 
+    
+    let key stable-key x y
+    
+    table:put turtle-table key self
   ]
   
-  print word "turtle-list :> " turtle-list
-  
-  report turtle-list
-  
+  report turtle-table
 end
 
-to draw-link [turtle-list path]
-  
-  
-  let features extract-features path 
-  
-  let i 0
-  
-  while [i < length features] [
-    
-    let feature item i features
-    
-    let vertex-lists gis:vertex-lists-of feature
-    
-    let j 0
-    
-    while [j < length vertex-lists][
-    
-      let vertex-list item j vertex-lists
-      
-      let k 0
-      
-      while [k < length vertex-list] [
-        
+to-report stable-key [x y]
+  report (word x "," y)
+end
 
-         if (k + 1 < length vertex-list) [
-           
-           let vertex1 item k vertex-list
-        
-           let vertex2 item (k + 1)  vertex-list
-        
-           let loc1 gis:location-of vertex1
-        
-           let loc2 gis:location-of vertex2
-        
-           ifelse ((empty? loc1) or (empty? loc2)) [
+;; 
+to create-links [turtle-table features]
+  
+  foreach features [
    
-              print "pas de coordonnés"
-           ] [
-          
-              let x1 item 0 loc1
-        
-              let y1 item 1 loc1
+    let vertex-lists gis:vertex-lists-of ?
 
-              let x2 item 0 loc2
-        
-              let y2 item 1 loc2
-          
-              let turtle1 find-turtle turtle-list x1 y1
-          
-              let turtle2 find-turtle turtle-list x2 y2
-              
-              ask turtle1 [
-                
-                create-link-with turtle2
-              ]
+    foreach vertex-lists [
+      let vertices ?
 
+      ;; Utilise une boucle par index plutôt que `n-values` pour la clarté
+      let i 0
+      while [i < length vertices - 1] [
+        let v1 item i vertices
+        let v2 item (i + 1) vertices
+
+        let loc1 gis:location-of v1
+        let loc2 gis:location-of v2
+
+        if (loc1 != [] and loc2 != []) [
+          let x1 item 0 loc1
+          let y1 item 1 loc1
+          let x2 item 0 loc2
+          let y2 item 1 loc2
+
+          let key1 stable-key x1 y1
+          let key2 stable-key x2 y2
+
+          if (table:has-key? turtle-table key1 and table:has-key? turtle-table key2) [
+            ask table:get turtle-table key1 [
+              create-link-with table:get turtle-table key2
+            ]
+          ]
         ]
-         
-         ]
-      set k k + 1
+
+        set i i + 1
       ]
-    
-    set j j + 1
     ]
-   
-  set i i + 1 
   ]
-  
 end
 
-to-report find-turtle [turtle-list x y]
+
+to create-network-from-shp-file [path]
   
-      let a 0
-      while [a < length turtle-list][
-            
-             let coord-turtle item a turtle-list
-             
-             let trl item 1 coord-turtle
-             
-             let X1 item 2 coord-turtle
-               
-             let Y1 item 3 coord-turtle
-               
-             if (x = X1) and (y = Y1)[
-                 
-                  print "J'ai trouvé "
-               
-                  report trl
-             ]
-             
-          set a a + 1
-     ]
+  setup
+  
+  ;; je charge les features 
+  
+  set my-features get-features-from-dataset path
+  
+  ;;Extraire les sommets de facon uniques 
+  
+  set my-unique-vertices extract-vertex-from-features my-features
+  
+  ;; à partir de my-unique-vertices je cree des links puis je stocke las turtles dans my-turtle-list
+  
+  set my-turtle-table get-create-turtles-from-coords my-unique-vertices
+  
+  
+  ;;je cree les link entre les turtles
+  
+  create-links my-turtle-table my-features
+  
   
 end 
 
-
-to export-vertices-as-points [path]
+to export-degres-vertex [file path]
   
-  let features extract-features path
+  ;; Chargement des features
+  set my-features get-features-from-dataset path
   
-  file-open "data.csv" 
-  file-print "feature-fid,x,y"
+  ;; Ouverture du fichier de sortie
+  file-open file
   
-  let i 0
+  file-print "ID,degre"
   
-  while [i < length features] [
+  ;; Parcours de chaque feature
+  foreach my-features [
     
-    let feature item i features
+    let feature ?
     
-    let feature-id gis:property-value feature "ID"
+    let ID gis:property-value feature "ID"
     
     let vertex-lists gis:vertex-lists-of feature
     
-    let j 0
-    
-    while [j < length vertex-lists][
-    
-      let vertex-list item j vertex-lists
+    ;; Pour chaque segment dans la ligne (polyline)
+    foreach vertex-lists [
       
-      let k 0
+      let vertices ?
       
-      while [k < length vertex-list] [
-        
-        let vertex item k vertex-list
-        
+      let degree length vertices
+      
+      file-print (word ID "," degree)
+    ]
+  ]
+  
+  file-close
+end
+
+to export-vertices-as-points [file path]
+  let features get-features-from-dataset path
+  
+  let i 0
+  
+  file-open file
+  file-print "ID,coords"  ;; En-tête optionnel
+  
+  foreach features [
+    let feature ?
+    let ID gis:property-value feature "ID"
+    
+    let vertex-lists gis:vertex-lists-of feature
+    let coord-string (word ID ",")  ;; Commence la ligne avec l'ID
+    
+    foreach vertex-lists [
+      let vertices ?
+      foreach vertices [
+        let vertex ?
         let loc gis:location-of vertex
         
-        ifelse empty? loc [
-   
-          print "pas de coordonnés"
-        ] [
-          
+        if not empty? loc [
           let x item 0 loc
-        
           let y item 1 loc
-          
-          file-print(word feature-id ","x","y)
-          
-          print feature-id
-          print word x y
-
-        
+          set coord-string word coord-string (word x "," y ",")
         ]
-        
-        
-      set k k + 1
       ]
-    
-    set j j + 1
     ]
-   
-  set i i + 1 
+    
+    ;; Enlève la dernière virgule en trop (optionnel)
+    if length coord-string > 1 [
+      set coord-string substring coord-string 0 (length coord-string - 1)
+    ]
+    
+    file-print coord-string
   ]
-end 
+  
+  file-close
+end
+
 
 
 
@@ -334,23 +313,6 @@ ticks
 30.0
 
 BUTTON
-90
-393
-214
-426
-extract-features
-\ndraw-link draw-turtles-from-coord-list extract-vertex-from-lines \"FullMap/FullMap\" \"FullMap/FullMap\"
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
 9
 33
 72
@@ -368,12 +330,114 @@ NIL
 1
 
 BUTTON
-10
-117
-314
-150
+14
+94
+193
+127
+get-features-from-dataset
+print get-features-from-dataset \"middleMap/middleMap\"
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+16
+163
+211
+196
+extract-vertex-from-features
+let features get-features-from-dataset \"middleMap/middleMap\"\nprint extract-vertex-from-features features
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+15
+234
+223
+267
+create-turtles-from-coords
+let features get-features-from-dataset \"middleMap/middleMap\"\n\nlet coords extract-vertex-from-features features\n\nprint get-create-turtles-from-coords coords
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+15
+313
+110
+346
+create-links
+let features get-features-from-dataset \"middleMap/middleMap\"\n\nlet coords extract-vertex-from-features features\n\nlet turtle-table get-create-turtles-from-coords coords\n\ncreate-links turtle-table features
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+18
+372
+210
+405
+create-network-from-shp-file
+create-network-from-shp-file \"middleMap/middleMap\"
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+27
+447
+179
+480
+export-degres-vertex
+export-degres-vertex \"index.csv\" \"middleMap/middleMap\"
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+102
+598
+274
+631
 export-vertices-as-points
-export-vertices-as-points \"middleMap/middleMap\"
+export-vertices-as-points \"index1.csv\" \"middleMap/middleMap\"
 NIL
 1
 T
