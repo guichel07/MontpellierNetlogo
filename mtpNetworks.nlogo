@@ -4,7 +4,7 @@ extensions [gis table]
 
 ;; je declare  une variable global pour le jeu de donnes 
 
-globals [my-features my-unique-vertices my-turtle-table my-t]
+globals [my-features my-unique-vertices my-turtle-table]
 
 
 ;;  Reinitatliser 
@@ -194,7 +194,7 @@ to create-network-from-shp-file [path]
   
   set my-unique-vertices extract-vertex-from-features my-features
   
-  ;; à partir de my-unique-vertices je cree des links puis je stocke las turtles dans my-turtle-list
+  ;; à partir de my-unique-vertices je cree des turtles puis je stocke las turtles dans my-turtle-list
   
   set my-turtle-table get-create-turtles-from-coords my-unique-vertices
   
@@ -206,15 +206,56 @@ to create-network-from-shp-file [path]
   
 end 
 
-to export-degres-vertex [file path]
+to export-csv-line-vertices-info [file path]
   
-  ;; Chargement des features
-  set my-features get-features-from-dataset path
+
+  create-network-from-shp-file path
+  
   
   ;; Ouverture du fichier de sortie
+  
+  let max-sommets 0
+  
+  foreach my-features [
+    
+    let feature ?
+    
+    let total 0
+    foreach gis:vertex-lists-of feature [
+      
+      set total total + length ?
+    ]
+    if total > max-sommets [ set max-sommets total ]
+  ]
+  
+  print word  "max-sommets :> " max-sommets
+  
+  if file-exists? file [
+    
+      file-close
+      
+      file-delete file 
+  
+  ]
+  
   file-open file
   
-  file-print "ID,degre"
+  ;; En-tête du fichier CSV
+  let header "ID,nbrs-sommets"
+  
+  let i 1
+
+  while [i <= max-sommets] [
+    
+    set header word header (word "," "Turtle-ID" i "," "degre" ",x" i ",y" i)
+    
+    set i i + 1
+  ]
+
+  print header 
+  
+  file-print header
+  
   
   ;; Parcours de chaque feature
   foreach my-features [
@@ -225,25 +266,61 @@ to export-degres-vertex [file path]
     
     let vertex-lists gis:vertex-lists-of feature
     
-    ;; Pour chaque segment dans la ligne (polyline)
+    let nbrs-sommets 0
+    
+    let string ""
+    
     foreach vertex-lists [
       
       let vertices ?
       
-      let degree length vertices
+      set nbrs-sommets length vertices
+    
+      foreach vertices [
       
-      file-print (word ID "," degree)
+      let vertex ?
+      
+      let loc gis:location-of vertex
+      
+      if( loc != [] )[
+      
+        let key stable-key item 0 loc item 1 loc
+        
+        if (table:has-key? my-turtle-table key) [
+          
+            let trl table:get my-turtle-table key
+            
+            ask trl [
+              
+              set string (word string "," who "," count link-neighbors "," xcor "," ycor )
+
+            
+            ]
+        ]
+      ]
+      
+      
+      ]
+      
+      file-print (word ID "," word nbrs-sommets string)
     ]
   ]
   
   file-close
+  
+  setup
 end
 
 to export-vertices-as-points [file path]
   let features get-features-from-dataset path
   
   let i 0
+    
+  if file-exists? file [
+    
+      file-delete file 
   
+  ]
   file-open file
   file-print "ID,coords"  ;; En-tête optionnel
   
@@ -279,6 +356,40 @@ to export-vertices-as-points [file path]
   file-close
 end
 
+to export-turtles-coords-and-degrees [file]
+  
+  if file-exists? file [
+    
+      file-delete file 
+  
+  ]
+  file-open file
+  
+  file-print "id,x,y,degre"
+
+  foreach table:keys my-turtle-table [
+    
+    let key ?
+    
+    let trl table:get my-turtle-table key
+
+    ask trl [
+      
+      let id who
+      
+      let x xcor
+      
+      let y ycor
+      
+      let degre count link-neighbors  ; ou count my-links si tu veux tous les liens
+      
+      file-print (word id "," x "," y "," degre)
+    ]
+  ]
+
+  file-close
+end
+
 
 
 
@@ -288,10 +399,10 @@ end
 GRAPHICS-WINDOW
 210
 10
-1065
-886
-32
-32
+649
+470
+16
+16
 13.0
 1
 10
@@ -302,10 +413,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--32
-32
--32
-32
+-16
+16
+-16
+16
 0
 0
 1
@@ -330,12 +441,12 @@ NIL
 1
 
 BUTTON
-14
-94
-193
-127
-get-features-from-dataset
-print get-features-from-dataset \"middleMap/middleMap\"
+9
+83
+248
+116
+create-network-from-shp-extractMap
+create-network-from-shp-file \"extractMap/extractMap\"
 NIL
 1
 T
@@ -347,62 +458,11 @@ NIL
 1
 
 BUTTON
-16
-163
-211
-196
-extract-vertex-from-features
-let features get-features-from-dataset \"middleMap/middleMap\"\nprint extract-vertex-from-features features
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-15
-234
-223
-267
-create-turtles-from-coords
-let features get-features-from-dataset \"middleMap/middleMap\"\n\nlet coords extract-vertex-from-features features\n\nprint get-create-turtles-from-coords coords
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-15
-313
-110
-346
-create-links
-let features get-features-from-dataset \"middleMap/middleMap\"\n\nlet coords extract-vertex-from-features features\n\nlet turtle-table get-create-turtles-from-coords coords\n\ncreate-links turtle-table features
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-18
-372
-210
-405
-create-network-from-shp-file
+8
+136
+246
+169
+create-network-from-shp--middleMap
 create-network-from-shp-file \"middleMap/middleMap\"
 NIL
 1
@@ -415,12 +475,12 @@ NIL
 1
 
 BUTTON
-27
-447
-179
-480
-export-degres-vertex
-export-degres-vertex \"index.csv\" \"middleMap/middleMap\"
+9
+189
+226
+222
+create-network-from-shp-FullMap
+create-network-from-shp-file \"FullMap/FullMap\"
 NIL
 1
 T
@@ -432,12 +492,46 @@ NIL
 1
 
 BUTTON
-102
-598
-274
-631
-export-vertices-as-points
-export-vertices-as-points \"index1.csv\" \"middleMap/middleMap\"
+5
+512
+287
+545
+export-csv-nbrs-sommets-by-lines-middleMap
+export-csv-line-vertices-info \"nbrs-sommets-par_lignes-middleMap.csv\" \"middleMap/middleMap\"
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+6
+549
+272
+582
+export-csv-nbrs-sommets-by-lines-FullMap
+export-csv-line-vertices-info \"nbrs-sommets-par_lignes-FullMap.csv\" \"FullMap/FullMap\"
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+6
+474
+294
+507
+export-csv-nbrs-sommets-by-lines-extractMap
+export-csv-line-vertices-info \"nbrs-sommets-par_lignes-extractMap.csv\" \"extractMap/extractMap\"
 NIL
 1
 T
