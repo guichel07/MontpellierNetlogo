@@ -2,137 +2,166 @@
 extensions [gis table]
 
 
-;; je declare  une variable global pour le jeu de donnes 
+breed [stations station]
+
+
+;; je declare  une variable global pour le jeu de donnes
 
 globals [my-features my-unique-vertices my-turtle-table]
 
+stations-own
+[
+  final_destination? ; indicate if the station could be a final_destination for clients or not (0=not et 1=yes)
+  gross_potential  ; gross potential of attractivity of the station
+  net_potential  ; net potential of attractivity of the station : gross_potential / potential of the most attractive station
+  nb_clients_waiting  ; number of clients waiting at the station
+  clients_station_waiting_net   ; nb_clients_waiting / max_clients_station_waiting
+  nb_clients_picked_up_station  ; total number of clients picked up at the station
+  nb_clients_droped  ; number of clients droped at the station
+  bus_line ; 0 = the station not belongs to a bus line, 1 = the station belongs to the bus line 1, etc...
+  frequentation ; number of times that a vehicle crosses the station
+  linked?
+]
 
-;;  Reinitatliser 
 
-to setup 
-  
+;;  Reinitatliser
+
+to setup
+
   ;; Réinitialisation complète de l'environnement
   clear-all      ; Efface tout (agents, plots, etc.)
   reset-ticks    ; Remet le compteur à 0
-  
+
   ;; Réinitialisation spécifique des variables globales GIS
   set my-features []
-  
+
   set my-unique-vertices []
-  
+
   set my-turtle-table []
-  
-end 
+
+end
 
 
 
 
-;;La fonction si set les valeur de my-dataset et my-features 
+;;La fonction si set les valeur de my-dataset et my-features
 
 to-report get-features-from-dataset [path]
-  
+
   let features []
-  
+
   let path-shp word path ".shp"
-  
+
   let path-prj word path ".prj"
-  
+
   if ( not file-exists? path-shp) or ( not file-exists? path-prj) [
-     
+
      let paths (word (word path-shp "  et   " ) path-prj)
-     
+
      print word "Verifiez l'un des deux paths :> " paths
-     
-  
+
+
   ]
   carefully [
-    
+
     gis:load-coordinate-system path-prj
-    
+
     let dataset gis:load-dataset path-shp
-    
+
     gis:set-world-envelope gis:envelope-of dataset
-    
+
     set features gis:feature-list-of dataset
-    
+
     print word "Nbrs-features :> " length features
-    
-    
-    
+
+
+
   ]
-  
+
   [
     print (word "ERREUR : " error-message)
-    
+
   ]
-  
+
   report features
-end 
+end
 
 ;; Je vais à partir de features extraire les points des lignes et supprimer les doublons et retourne la liste unique
 
 to-report extract-vertex-from-features [features]
-  
+
   let my-list []
-  
-  foreach features [
-    
-    let feature ?
-    
-    foreach  gis:vertex-lists-of feature [
-      
-      let vertex-list ?
-      
-      foreach vertex-list [
-        
-        let loc gis:location-of ?
-        
+
+  foreach features [ ?1 ->
+
+    let feature ?1
+
+    foreach  gis:vertex-lists-of feature [ ??1 ->
+
+      let vertex-list ??1
+
+      foreach vertex-list [ ???1 ->
+
+        let loc gis:location-of ???1
+
         if not empty? loc [
           set my-list fput (list (item 0 loc) (item 1 loc)) my-list
         ]
-        
+
       ]
-      
+
     ]
-   
+
   ]
-  
+
   let my-list-unique remove-duplicates my-list
-  
+
   print word "list avec doublons :> " length my-list
   print word "list sans doublons :> " length my-list-unique
-  
+
   report my-list-unique
-  
+
 end
 
 ;; la fonction permet dans un premier temps creer des turtles et à la fin retourner un table de turtles
 
 to-report get-create-turtles-from-coords [coords]
-  
+
   let turtle-table table:make
-  
-  create-ordered-turtles length coords [
+
+  create-stations length coords [
+
+    set final_destination? 0
 
     set shape "circle"
-    
+
     set color green
-    
-    set size 0.2
-   
+
+    set size 4
+
     let coord item who coords
-    
+
     let x item 0 coord
-    
-    let y item 1 coord 
-    
-    setxy x y 
-    
+
+    let y item 1 coord
+
+    setxy x y
+
     let key stable-key x y
-    
+
     table:put turtle-table key self
   ]
-  
+
+  let all-stations turtles with [breed = stations]
+
+  ask n-of (length coords / 2) all-stations
+  [
+    set final_destination? 1
+    set shape "flag"
+    set color red
+
+  ]
+
   report turtle-table
 end
 
@@ -140,15 +169,15 @@ to-report stable-key [x y]
   report (word x "," y)
 end
 
-;; 
+;;
 to create-links [turtle-table features]
-  
-  foreach features [
-   
-    let vertex-lists gis:vertex-lists-of ?
 
-    foreach vertex-lists [
-      let vertices ?
+  foreach features [ ?1 ->
+
+    let vertex-lists gis:vertex-lists-of ?1
+
+    foreach vertex-lists [ ??1 ->
+      let vertices ??1
 
       ;; Utilise une boucle par index plutôt que `n-values` pour la clarté
       let i 0
@@ -183,160 +212,162 @@ end
 
 
 to create-network-from-shp-file [path]
-  
+
   setup
-  
-  ;; je charge les features 
-  
+
+  ;; je charge les features
+
   set my-features get-features-from-dataset path
-  
-  ;;Extraire les sommets de facon uniques 
-  
+
+  ;;Extraire les sommets de facon uniques
+
   set my-unique-vertices extract-vertex-from-features my-features
-  
+
   ;; à partir de my-unique-vertices je cree des turtles puis je stocke las turtles dans my-turtle-list
-  
+
   set my-turtle-table get-create-turtles-from-coords my-unique-vertices
-  
-  
+
+
   ;;je cree les link entre les turtles
-  
+
   create-links my-turtle-table my-features
-  
-  
-end 
+
+
+end
 
 to export-csv-line-vertices-info [file path]
-  
+
 
   create-network-from-shp-file path
-  
-  
+
+
   ;; Ouverture du fichier de sortie
-  
+
   let max-sommets 0
-  
-  foreach my-features [
-    
-    let feature ?
-    
+
+  foreach my-features [ ?1 ->
+
+    let feature ?1
+
     let total 0
-    foreach gis:vertex-lists-of feature [
-      
-      set total total + length ?
+    foreach gis:vertex-lists-of feature [ ??1 ->
+
+      set total total + length ??1
     ]
     if total > max-sommets [ set max-sommets total ]
   ]
-  
+
   print word  "max-sommets :> " max-sommets
-  
+
   if file-exists? file [
-    
+
       file-close
-      
-      file-delete file 
-  
+
+      file-delete file
+
   ]
-  
+
   file-open file
-  
+
   ;; En-tête du fichier CSV
-  let header "ID,nbrs-sommets"
-  
+  let header "ID,NATURE,nbrs-sommets"
+
   let i 1
 
   while [i <= max-sommets] [
-    
+
     set header word header (word "," "Turtle-ID" i "," "degre" ",x" i ",y" i)
-    
+
     set i i + 1
   ]
 
-  print header 
-  
+  print header
+
   file-print header
-  
-  
+
+
   ;; Parcours de chaque feature
-  foreach my-features [
-    
-    let feature ?
-    
+  foreach my-features [ ?1 ->
+
+    let feature ?1
+
     let ID gis:property-value feature "ID"
-    
+
+    let NATURE gis:property-value feature "NATURE"
+
     let vertex-lists gis:vertex-lists-of feature
-    
+
     let nbrs-sommets 0
-    
+
     let string ""
-    
-    foreach vertex-lists [
-      
-      let vertices ?
-      
+
+    foreach vertex-lists [ ??1 ->
+
+      let vertices ??1
+
       set nbrs-sommets length vertices
-    
-      foreach vertices [
-      
-      let vertex ?
-      
+
+      foreach vertices [ ???1 ->
+
+      let vertex ???1
+
       let loc gis:location-of vertex
-      
+
       if( loc != [] )[
-      
+
         let key stable-key item 0 loc item 1 loc
-        
+
         if (table:has-key? my-turtle-table key) [
-          
+
             let trl table:get my-turtle-table key
-            
+
             ask trl [
-              
+
               set string (word string "," who "," count link-neighbors "," xcor "," ycor )
 
-            
+
             ]
         ]
       ]
-      
-      
+
+
       ]
-      
-      file-print (word ID "," word nbrs-sommets string)
+
+      file-print (word ID "," NATURE "," word nbrs-sommets string)
     ]
   ]
-  
+
   file-close
-  
+
   setup
 end
 
 to export-vertices-as-points [file path]
   let features get-features-from-dataset path
-  
+
   let i 0
-    
+
   if file-exists? file [
-    
-      file-delete file 
-  
+
+      file-delete file
+
   ]
   file-open file
   file-print "ID,coords"  ;; En-tête optionnel
-  
-  foreach features [
-    let feature ?
+
+  foreach features [ ?1 ->
+    let feature ?1
     let ID gis:property-value feature "ID"
-    
+
     let vertex-lists gis:vertex-lists-of feature
     let coord-string (word ID ",")  ;; Commence la ligne avec l'ID
-    
-    foreach vertex-lists [
-      let vertices ?
-      foreach vertices [
-        let vertex ?
+
+    foreach vertex-lists [ ??1 ->
+      let vertices ??1
+      foreach vertices [ ???1 ->
+        let vertex ???1
         let loc gis:location-of vertex
-        
+
         if not empty? loc [
           let x item 0 loc
           let y item 1 loc
@@ -344,45 +375,45 @@ to export-vertices-as-points [file path]
         ]
       ]
     ]
-    
+
     ;; Enlève la dernière virgule en trop (optionnel)
     if length coord-string > 1 [
       set coord-string substring coord-string 0 (length coord-string - 1)
     ]
-    
+
     file-print coord-string
   ]
-  
+
   file-close
 end
 
 to export-turtles-coords-and-degrees [file]
-  
+
   if file-exists? file [
-    
-      file-delete file 
-  
+
+      file-delete file
+
   ]
   file-open file
-  
+
   file-print "id,x,y,degre"
 
-  foreach table:keys my-turtle-table [
-    
-    let key ?
-    
+  foreach table:keys my-turtle-table [ ?1 ->
+
+    let key ?1
+
     let trl table:get my-turtle-table key
 
     ask trl [
-      
+
       let id who
-      
+
       let x xcor
-      
+
       let y ycor
-      
+
       let degre count link-neighbors  ; ou count my-links si tu veux tous les liens
-      
+
       file-print (word id "," x "," y "," degre)
     ]
   ]
@@ -393,16 +424,15 @@ end
 
 
 
-  
-  
+
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
 10
-649
-470
-16
-16
+7511
+7832
+-1
+-1
 13.0
 1
 10
@@ -413,10 +443,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--16
-16
--16
-16
+-280
+280
+-300
+300
 0
 0
 1
@@ -883,9 +913,8 @@ false
 0
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
-
 @#$#@#$#@
-NetLogo 5.0.4
+NetLogo 6.4.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
@@ -893,15 +922,14 @@ NetLogo 5.0.4
 @#$#@#$#@
 default
 0.0
--0.2 0 1.0 0.0
+-0.2 0 0.0 1.0
 0.0 1 1.0 0.0
-0.2 0 1.0 0.0
+0.2 0 0.0 1.0
 link direction
 true
 0
 Line -7500403 true 150 150 90 180
 Line -7500403 true 150 150 210 180
-
 @#$#@#$#@
 0
 @#$#@#$#@
