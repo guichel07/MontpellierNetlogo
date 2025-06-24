@@ -137,7 +137,7 @@ to-report get-create-turtles-from-coords [coords]
 
     set color green
 
-    set size 0.
+    set size 0.3
 
     let coord item who coords
 
@@ -234,6 +234,99 @@ to create-network-from-shp-file [path]
 
 
 end
+
+to-report produit-scalaire [a b c]
+
+  let bax ([xcor] of a - [xcor] of b)
+
+  let bay ([ycor] of a - [ycor] of b)
+
+  let bcx ([xcor] of c - [xcor] of b)
+
+  let bcy ([ycor] of c - [ycor] of b)
+
+  let scal (bax * bcx + bay * bcy)
+
+  report scal
+
+end
+
+to-report distances [a b c]
+
+  let ba [distance b] of a
+
+  let bc [distance b] of c
+
+  let ac [distance c] of a
+
+  if ( ba = 0 or bc = 0) [
+
+    report (list 0 0 0)
+  ]
+  report (list ba bc ac)
+
+end
+
+to-report angle-between-and-rapport [ba bc scal]
+
+  let ratio  (scal / (ba * bc))
+
+  let safe-ratio max list -1 (min list 1 ratio)
+
+  report acos safe-ratio
+end
+
+to simplify-by-angle [limite]
+
+  ask stations with [count my-links = 2] [
+
+    let voisins sort link-neighbors
+
+    if (length voisins = 2) [
+
+    let voisinA item 0 voisins
+
+    let voisinC item 1 voisins
+
+
+    let scalaire produit-scalaire voisinA self voisinC
+
+    let distances-list distances voisinA self voisinC
+
+    let ba item 0 distances-list
+
+    let bc item 1 distances-list
+
+    let angle angle-between-and-rapport ba bc scalaire
+
+    if (angle > limite or (ba / bc > 1 or bc / ba > 1)) [
+
+      ask voisinA [
+       create-link-with voisinC
+      ]
+
+      ask self [
+         set color white
+
+      ]
+
+      ask my-links [die]
+    ]
+
+    ]
+  ]
+
+end
+
+to delete-station-degre-one
+
+  ask stations with [count my-links = 0] [
+   die
+  ]
+end
+
+
+
 
 to export-csv-line-vertices-info [file path]
 
@@ -423,14 +516,12 @@ end
 
 
 
-
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
 10
-7511
-7832
+1063
+864
 -1
 -1
 13.0
@@ -443,10 +534,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--280
-280
--300
-300
+-32
+32
+-32
+32
 0
 0
 1
