@@ -1,132 +1,119 @@
-Voici le contenu du `README.md` en **pur Markdown** (sans encadré), prêt à être copié dans un fichier :
+
+---
 
 ````markdown
-# 🗺️ NetLogo - Réseau de Stations depuis Shapefile (GIS)
+# 🚏 Réseau de Stations avec NetLogo : Construction, Simplification et Export
 
-Ce projet NetLogo construit et analyse un **réseau de stations** à partir d’un fichier **shapefile (.shp)** contenant des lignes (comme des routes ou lignes de bus). Il permet de créer un graphe spatial, de le simplifier, et d’en exporter les données.
+Ce projet permet de construire, analyser et exporter un **réseau de stations** à partir d’un fichier **Shapefile (.shp)** en utilisant **NetLogo**. Il intègre des fonctions pour :
 
----
-
-## 📦 Fonctionnalités principales
-
-- Chargement de shapefiles via l’extension `gis`
-- Extraction et dé-duplication des sommets
-- Création de nœuds (`stations`) et liens (`links`)
-- Simplification topologique par angle
-- Export des stations et des liens au format CSV
+- Créer le réseau depuis des lignes géographiques
+- Identifier et simplifier les nœuds du réseau selon leur alignement
+- Exporter des informations structurées dans un fichier CSV
 
 ---
 
-## 🧩 Extensions NetLogo utilisées
-
-- [`gis`](https://ccl.northwestern.edu/netlogo/docs/gis.html) : pour manipuler des fichiers géographiques
-- `table` : pour gérer les associations entre coordonnées et agents
-
----
-
-## ⚙️ Utilisation
-
-### 1. Charger le fichier shapefile
+## 🧩 Extensions nécessaires
 
 ```netlogo
-create-network-from-shp-file "data/ligne_bus"
+extensions [gis table]
 ````
 
-### 2. Simplifier le réseau
+* `gis` : pour manipuler des fichiers SIG (shapefiles)
+* `table` : pour stocker et retrouver les nœuds rapidement
+
+---
+
+## 📄 Données nécessaires
+
+* Un fichier `.shp` et son fichier de projection `.prj`
+* Les propriétés `ID` et `NATURE` doivent être présentes dans les entités géographiques
+
+---
+
+## 🚀 Lancement rapide
 
 ```netlogo
-simplify-by-angle 0.2
+create-network-from-shp-file "data/ton_fichier_sans_extension"
+simplify-by-angle 170
+export-csv-line-vertices-info "exports/ligne_stations.csv" "data/ton_fichier_sans_extension"
 ```
 
-### 3. Exporter les données
+---
+
+## 📚 Description des fonctions
+
+### ⚙️ Initialisation
+
+| Fonction | Description                                                               |
+| -------- | ------------------------------------------------------------------------- |
+| `setup`  | Réinitialise l'environnement NetLogo, les variables et efface les agents. |
+
+---
+
+### 📥 Import du réseau depuis un fichier `.shp`
+
+| Fonction                                  | Rôle                                                                                            |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `get-features-from-dataset [path]`        | Charge un shapefile et retourne les entités (features).                                         |
+| `extract-vertex-from-features [features]` | Extrait tous les sommets des lignes et supprime les doublons.                                   |
+| `get-create-turtles-from-coords [coords]` | Crée des `stations` (turtles) à partir des coordonnées et retourne une table de correspondance. |
+| `create-links [table features]`           | Crée les connexions (liens) entre stations à partir des lignes du shapefile.                    |
+| `create-network-from-shp-file [path]`     | Fonction principale qui appelle toutes les étapes précédentes pour construire le réseau.        |
+
+---
+
+### 🧠 Logique de simplification
+
+| Fonction                                                     | Rôle                                                                                     |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `simplify-by-angle [limite]`                                 | Supprime les stations intermédiaires quasi-alignées (si angle entre voisins > `limite`). |
+| `produit-scalaire`, `distances`, `angle-between-and-rapport` | Utilitaires pour calculer les angles entre trois nœuds consécutifs.                      |
+| `delete-station-degre-one`                                   | Supprime les stations sans connexion (isolées).                                          |
+
+✅ **Exemple :**
 
 ```netlogo
-export-csv-line-vertices-info "exports/stations.csv" "data/ligne_bus"
-export-turtles-coords-and-degrees "exports/nodes.csv"
-export-vertices-as-points "exports/points.csv" "data/ligne_bus"
+simplify-by-angle 170
 ```
 
 ---
 
-## 🐢 Structure des agents `stations`
+### 📤 Export CSV
 
-| Variable                       | Description                                               |
-| ------------------------------ | --------------------------------------------------------- |
-| `final_destination?`           | Est-ce une station de destination finale (1 ou 0)         |
-| `gross_potential`              | Potentiel brut d’attractivité                             |
-| `net_potential`                | Potentiel net par rapport à la station la plus attractive |
-| `nb_clients_waiting`           | Nombre de clients en attente                              |
-| `clients_station_waiting_net`  | Ratio clients/max\_clients                                |
-| `nb_clients_picked_up_station` | Clients embarqués                                         |
-| `nb_clients_droped`            | Clients déposés                                           |
-| `bus_line`                     | Ligne de bus associée (0 : aucune)                        |
-| `frequentation`                | Fréquence de passage                                      |
-| `linked?`                      | Connectée à d’autres stations ?                           |
+| Fonction                                       | Fichier généré       | Rôle                                                                                      |
+| ---------------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------- |
+| `export-csv-line-vertices-info [fichier path]` | `ligne_stations.csv` | Pour chaque ligne : ID, NATURE, nombre de sommets, Turtle-ID, degré, coordonnées `(x, y)` |
 
----
-
-## 📁 Structure des exports
-
-### `stations.csv`
-
-* ID de la ligne
-* NATURE (type de ligne)
-* Nombre de sommets
-* Pour chaque sommet : Turtle ID, degré, coordonnées (x, y)
-
-### `nodes.csv`
-
-* ID turtle
-* Coordonnées (x, y)
-* Degré (nombre de connexions)
-
-### `points.csv`
-
-* ID ligne
-* Coordonnées des sommets
-
----
-
-## 📐 Calculs géométriques
-
-Le script utilise :
-
-* Produit scalaire pour calculer l’angle entre deux segments
-* Distance entre points
-* Rapport d’angle pour la simplification du graphe
-
----
-
-## 📝 Requis
-
-* NetLogo (version 6.2+ recommandée)
-* Un fichier `.shp` et `.prj` valides
-* Propriétés `"ID"` et `"NATURE"` dans le shapefile (utilisées pour l'export)
-
----
-
-## 📌 Exemple complet
+✅ **Exemple :**
 
 ```netlogo
-create-network-from-shp-file "data/ligne_bus"
-simplify-by-angle 0.25
-delete-station-degre-one
-export-csv-line-vertices-info "exports/stations.csv" "data/ligne_bus"
+export-csv-line-vertices-info "exports/ligne_stations.csv" "data/ton_fichier_sans_extension"
 ```
+
 
 ---
 
-## 🛠️ Auteur
+## 📈 Données enregistrées dans `stations-own`
 
-Ce projet a été développé pour l’analyse et la modélisation de réseaux de transport à partir de données SIG (Shapefile).
+| Attribut                       | Signification                                            |
+| ------------------------------ | -------------------------------------------------------- |
+| `final_destination?`           | Si la station peut être une destination finale (1 = oui) |
+| `gross_potential`              | Attractivité brute de la station                         |
+| `net_potential`                | Potentiel normalisé de la station                        |
+| `nb_clients_waiting`           | Nombre de clients en attente                             |
+| `clients_station_waiting_net`  | Ratio des clients en attente par rapport au max          |
+| `nb_clients_picked_up_station` | Total de clients embarqués à la station                  |
+| `nb_clients_droped`            | Nombre de clients déposés                                |
+| `bus_line`                     | Ligne de bus à laquelle la station appartient            |
+| `frequentation`                | Fréquence de passage des véhicules                       |
+| `linked?`                      | Booléen pour indiquer si la station est connectée        |
 
 ---
 
-## 📃 Licence
+## 🧑‍💻 Auteur
 
-À définir (MIT, GPL, etc.)
+Ce script a été conçu pour simuler et analyser des réseaux de transport urbain à partir de données géographiques SIG.
 
-```
+---
 
-Souhaite-tu aussi un fichier `.gitignore` pour NetLogo ?
-```
+

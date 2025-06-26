@@ -315,6 +315,7 @@ to simplify-by-angle [limite]
 
     ]
   ]
+  delete-station-degre-one
 end
 
 to delete-station-degre-one
@@ -434,87 +435,6 @@ to export-csv-line-vertices-info [file path]
   setup
 end
 
-to export-vertices-as-points [file path]
-  let features get-features-from-dataset path
-
-  let i 0
-
-  if file-exists? file [
-
-      file-delete file
-
-  ]
-  file-open file
-  file-print "ID,coords"  ;; En-tête optionnel
-
-  foreach features [ ?1 ->
-    let feature ?1
-    let ID gis:property-value feature "ID"
-
-    let vertex-lists gis:vertex-lists-of feature
-    let coord-string (word ID ",")  ;; Commence la ligne avec l'ID
-
-    foreach vertex-lists [ ??1 ->
-      let vertices ??1
-      foreach vertices [ ???1 ->
-        let vertex ???1
-        let loc gis:location-of vertex
-
-        if not empty? loc [
-          let x item 0 loc
-          let y item 1 loc
-          set coord-string word coord-string (word x "," y ",")
-        ]
-      ]
-    ]
-
-    ;; Enlève la dernière virgule en trop (optionnel)
-    if length coord-string > 1 [
-      set coord-string substring coord-string 0 (length coord-string - 1)
-    ]
-
-    file-print coord-string
-  ]
-
-  file-close
-end
-
-to export-turtles-coords-and-degrees [file]
-
-  if file-exists? file [
-
-      file-delete file
-
-  ]
-  file-open file
-
-  file-print "id,x,y,degre"
-
-  foreach table:keys my-turtle-table [ ?1 ->
-
-    let key ?1
-
-    let trl table:get my-turtle-table key
-
-    ask trl [
-
-      let id who
-
-      let x xcor
-
-      let y ycor
-
-      let degre count link-neighbors  ; ou count my-links si tu veux tous les liens
-
-      file-print (word id "," x "," y "," degre)
-    ]
-  ]
-
-  file-close
-end
-
-
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
@@ -542,23 +462,6 @@ GRAPHICS-WINDOW
 1
 ticks
 30.0
-
-BUTTON
-0
-0
-0
-0
-NIL
-NIL
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
 
 BUTTON
 9
@@ -669,6 +572,23 @@ BUTTON
 507
 export-csv-nbrs-sommets-by-lines-extractMap
 export-csv-line-vertices-info \"nbrs-sommets-par_lignes-extractMap.csv\" \"extractMap/extractMap\"
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+1154
+33
+1298
+66
+NIL
+simplify-by-angle 30
 NIL
 1
 T
