@@ -315,7 +315,6 @@ to simplify-by-angle [limite]
 
     ]
   ]
-
 end
 
 to delete-station-degre-one
@@ -543,6 +542,23 @@ GRAPHICS-WINDOW
 1
 ticks
 30.0
+
+BUTTON
+0
+0
+0
+0
+NIL
+NIL
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 BUTTON
 9
