@@ -1,166 +1,518 @@
 ;; je fais appel à l'extension GIS pour gerer les fichiers gis
-extensions [gis]
+extensions [gis table]
 
 
-;; je declare  une variable global pour le jeu de donnes 
-
-globals [my-dataset my-data-sommets]
+breed [stations station]
 
 
-;;  Reinitatliser 
+;; je declare  une variable global pour le jeu de donnes
 
-to setup 
-  
-  ;; Pour tout nettoyer 
-  clear-all 
-  
-  ;; Pour remmettre le compteur à zero de tout les simulations 
-  reset-ticks
-  
-end 
+globals [my-features my-unique-vertices my-turtle-table]
 
-
-to load-map-data [path]
-  
-  ;;recuperer les donnes puis le charge dans my-dataset
-  
-  set my-dataset gis:load-dataset path
-  
-  ;; là j'adapte les données au monde de netelogo
-  
-  gis:set-world-envelope gis:envelope-of my-dataset
-  
-  let features gis:feature-list-of my-dataset
-  
-  let first-feature first features
-  
-  print "Liste des propriétés de la première feature :"
-  
-  print first-feature
-  
-end
+stations-own
+[
+  final_destination? ; indicate if the station could be a final_destination for clients or not (0=not et 1=yes)
+  gross_potential  ; gross potential of attractivity of the station
+  net_potential  ; net potential of attractivity of the station : gross_potential / potential of the most attractive station
+  nb_clients_waiting  ; number of clients waiting at the station
+  clients_station_waiting_net   ; nb_clients_waiting / max_clients_station_waiting
+  nb_clients_picked_up_station  ; total number of clients picked up at the station
+  nb_clients_droped  ; number of clients droped at the station
+  bus_line ; 0 = the station not belongs to a bus line, 1 = the station belongs to the bus line 1, etc...
+  frequentation ; number of times that a vehicle crosses the station
+  linked?
+]
 
 
-to-report load-sommets [path]
-  ;; charger le fichier shapefile des sommets
-  set my-data-sommets gis:load-dataset path
+;;  Reinitatliser
 
-  ;; adapter l'enveloppe du monde à ces données
-  gis:set-world-envelope gis:envelope-of my-data-sommets
+to setup
 
-  ;; récupérer la liste des entités (points)
-  let features gis:feature-list-of my-data-sommets
-  
-  report features
-  
+  ;; Réinitialisation complète de l'environnement
+  clear-all      ; Efface tout (agents, plots, etc.)
+  reset-ticks    ; Remet le compteur à 0
+
+  ;; Réinitialisation spécifique des variables globales GIS
+  set my-features []
+
+  set my-unique-vertices []
+
+  set my-turtle-table []
+
 end
 
 
 
-to-report extract-sommets-with-id [path]
-  
-  let resultat []
-  let features load-sommets path
-  
-  let nb-features length features
-  let i 0
- 
-  
-  while [i < nb-features] [
-    let current-feature item i features
-    let vertex-lists gis:vertex-lists-of current-feature
-    
-    let id gis:property-value current-feature "ID"
-    
-    print id
-    
-    ;; Vérification avec if
-    if not empty? vertex-lists [
-      let vertex-list first vertex-lists
-      
-      if not empty? vertex-list [
-        let vertex first vertex-list
-        let coords gis:location-of vertex
-        
-        if (length coords) >= 2 [
-          let x item 0 coords
-          let y item 1 coords
-          
-          set resultat lput (list id  x y) resultat
-          
-          create-turtles 1 [
-          setxy x y
-          set shape "circle"
-          set color green
-          set size 0.3
-       ]
-        ]
-      ]
-    ]
-    
-    set i i + 1
+
+;;La fonction si set les valeur de my-dataset et my-features
+
+to-report get-features-from-dataset [path]
+
+  let features []
+
+  let path-shp word path ".shp"
+
+  let path-prj word path ".prj"
+
+  if ( not file-exists? path-shp) or ( not file-exists? path-prj) [
+
+     let paths (word (word path-shp "  et   " ) path-prj)
+
+     print word "Verifiez l'un des deux paths :> " paths
+
+
   ]
-  report resultat
+  carefully [
+
+    gis:load-coordinate-system path-prj
+
+    let dataset gis:load-dataset path-shp
+
+    gis:set-world-envelope gis:envelope-of dataset
+
+    set features gis:feature-list-of dataset
+
+    print word "Nbrs-features :> " length features
+
+
+
+  ]
+
+  [
+    print (word "ERREUR : " error-message)
+
+  ]
+
+  report features
 end
 
-  
-  
-to draw-map-features [data]
-  let features gis:feature-list-of data
+;; Je vais à partir de features extraire les points des lignes et supprimer les doublons et retourne la liste unique
 
-  let i 0
-  while [i < length features] [
-    let current-feature item i features
-    
-    let vertex-lists gis:vertex-lists-of current-feature
+to-report extract-vertex-from-features [features]
 
-    let j 0
-    while [j < length vertex-lists] [
-      let vertex-list item j vertex-lists
+  let my-list []
 
-      let k 0
-      
-      let previous-turtle nobody
-      
-      while [k < length vertex-list] [
-        let v item k vertex-list
-        
-        ;; gis:location-of retourne une liste [x y]
-        let loc gis:location-of v
-        
-        let x item 0 loc
-        let y item 1 loc
-        
-        create-turtles 1 [
-          setxy x y
-          set shape "circle"
-          set color green
-          set size 0.3
-          
-          ;; On stocke la tortue créée dans une variable globale locale
-          set previous-turtle self
+  foreach features [ ?1 ->
+
+    let feature ?1
+
+    foreach  gis:vertex-lists-of feature [ ??1 ->
+
+      let vertex-list ??1
+
+      foreach vertex-list [ ???1 ->
+
+        let loc gis:location-of ???1
+
+        if not empty? loc [
+          set my-list fput (list (item 0 loc) (item 1 loc)) my-list
         ]
-        
-        if previous-turtle != nobody and k > 0 [
-          ask previous-turtle [
-            create-link-with turtle (who - 1)
+
+      ]
+
+    ]
+
+  ]
+
+  let my-list-unique remove-duplicates my-list
+
+  print word "list avec doublons :> " length my-list
+  print word "list sans doublons :> " length my-list-unique
+
+  report my-list-unique
+
+end
+
+;; la fonction permet dans un premier temps creer des turtles et à la fin retourner un table de turtles
+
+to-report get-create-turtles-from-coords [coords]
+
+  let turtle-table table:make
+
+  create-stations length coords [
+
+    set final_destination? 0
+
+    set shape "circle"
+
+    set color green
+
+    set size 0.3
+
+    let coord item who coords
+
+    let x item 0 coord
+
+    let y item 1 coord
+
+    setxy x y
+
+    let key stable-key x y
+
+    table:put turtle-table key self
+  ]
+
+  let all-stations turtles with [breed = stations]
+
+  ask n-of (length coords / 2) all-stations
+  [
+    set final_destination? 1
+    set shape "flag"
+    set color red
+
+  ]
+
+  report turtle-table
+end
+
+to-report stable-key [x y]
+  report (word x "," y)
+end
+
+;;
+to create-links [turtle-table features]
+
+  foreach features [ ?1 ->
+
+    let vertex-lists gis:vertex-lists-of ?1
+
+    foreach vertex-lists [ ??1 ->
+      let vertices ??1
+
+      ;; Utilise une boucle par index plutôt que `n-values` pour la clarté
+      let i 0
+      while [i < length vertices - 1] [
+        let v1 item i vertices
+        let v2 item (i + 1) vertices
+
+        let loc1 gis:location-of v1
+        let loc2 gis:location-of v2
+
+        if (loc1 != [] and loc2 != []) [
+          let x1 item 0 loc1
+          let y1 item 1 loc1
+          let x2 item 0 loc2
+          let y2 item 1 loc2
+
+          let key1 stable-key x1 y1
+          let key2 stable-key x2 y2
+
+          if (table:has-key? turtle-table key1 and table:has-key? turtle-table key2) [
+            ask table:get turtle-table key1 [
+              create-link-with table:get turtle-table key2
+            ]
           ]
         ]
-        
-        set k k + 1
+
+        set i i + 1
       ]
-      
-      set j j + 1
     ]
-    
-    set i i + 1
   ]
 end
 
-to draw
-   gis:set-drawing-color white
-   gis:draw my-dataset 0.1
+
+to create-network-from-shp-file [path]
+
+  setup
+
+  ;; je charge les features
+
+  set my-features get-features-from-dataset path
+
+  ;;Extraire les sommets de facon uniques
+
+  set my-unique-vertices extract-vertex-from-features my-features
+
+  ;; à partir de my-unique-vertices je cree des turtles puis je stocke las turtles dans my-turtle-list
+
+  set my-turtle-table get-create-turtles-from-coords my-unique-vertices
+
+
+  ;;je cree les link entre les turtles
+
+  create-links my-turtle-table my-features
+
+
 end
+
+to-report produit-scalaire [a b c]
+
+  let bax ([xcor] of a - [xcor] of b)
+
+  let bay ([ycor] of a - [ycor] of b)
+
+  let bcx ([xcor] of c - [xcor] of b)
+
+  let bcy ([ycor] of c - [ycor] of b)
+
+  let scal (bax * bcx + bay * bcy)
+
+  report scal
+
+end
+
+to-report distances [a b c]
+
+  let ba [distance b] of a
+
+  let bc [distance b] of c
+
+  let ac [distance c] of a
+
+  if ( ba = 0 or bc = 0) [
+
+    report (list 0 0 0)
+  ]
+  report (list ba bc ac)
+
+end
+
+to-report angle-between-and-rapport [ba bc scal]
+
+  let ratio  (scal / (ba * bc))
+
+  let safe-ratio max list -1 (min list 1 ratio)
+
+  report acos safe-ratio
+end
+
+to simplify-by-angle [limite]
+
+  ask stations with [count my-links = 2] [
+
+    let voisins sort link-neighbors
+
+    if (length voisins = 2) [
+
+    let voisinA item 0 voisins
+
+    let voisinC item 1 voisins
+
+
+    let scalaire produit-scalaire voisinA self voisinC
+
+    let distances-list distances voisinA self voisinC
+
+    let ba item 0 distances-list
+
+    let bc item 1 distances-list
+
+    let angle angle-between-and-rapport ba bc scalaire
+
+    if (angle > limite or (ba / bc > 1 or bc / ba > 1)) [
+
+      ask voisinA [
+       create-link-with voisinC
+      ]
+
+      ask self [
+         set color white
+
+      ]
+
+      ask my-links [die]
+    ]
+
+    ]
+  ]
+end
+
+to delete-station-degre-one
+
+  ask stations with [count my-links = 0] [
+   die
+  ]
+end
+
+
+
+
+to export-csv-line-vertices-info [file path]
+
+
+  create-network-from-shp-file path
+
+
+  ;; Ouverture du fichier de sortie
+
+  let max-sommets 0
+
+  foreach my-features [ ?1 ->
+
+    let feature ?1
+
+    let total 0
+    foreach gis:vertex-lists-of feature [ ??1 ->
+
+      set total total + length ??1
+    ]
+    if total > max-sommets [ set max-sommets total ]
+  ]
+
+  print word  "max-sommets :> " max-sommets
+
+  if file-exists? file [
+
+      file-close
+
+      file-delete file
+
+  ]
+
+  file-open file
+
+  ;; En-tête du fichier CSV
+  let header "ID,NATURE,nbrs-sommets"
+
+  let i 1
+
+  while [i <= max-sommets] [
+
+    set header word header (word "," "Turtle-ID" i "," "degre" ",x" i ",y" i)
+
+    set i i + 1
+  ]
+
+  print header
+
+  file-print header
+
+
+  ;; Parcours de chaque feature
+  foreach my-features [ ?1 ->
+
+    let feature ?1
+
+    let ID gis:property-value feature "ID"
+
+    let NATURE gis:property-value feature "NATURE"
+
+    let vertex-lists gis:vertex-lists-of feature
+
+    let nbrs-sommets 0
+
+    let string ""
+
+    foreach vertex-lists [ ??1 ->
+
+      let vertices ??1
+
+      set nbrs-sommets length vertices
+
+      foreach vertices [ ???1 ->
+
+      let vertex ???1
+
+      let loc gis:location-of vertex
+
+      if( loc != [] )[
+
+        let key stable-key item 0 loc item 1 loc
+
+        if (table:has-key? my-turtle-table key) [
+
+            let trl table:get my-turtle-table key
+
+            ask trl [
+
+              set string (word string "," who "," count link-neighbors "," xcor "," ycor )
+
+
+            ]
+        ]
+      ]
+
+
+      ]
+
+      file-print (word ID "," NATURE "," word nbrs-sommets string)
+    ]
+  ]
+
+  file-close
+
+  setup
+end
+
+to export-vertices-as-points [file path]
+  let features get-features-from-dataset path
+
+  let i 0
+
+  if file-exists? file [
+
+      file-delete file
+
+  ]
+  file-open file
+  file-print "ID,coords"  ;; En-tête optionnel
+
+  foreach features [ ?1 ->
+    let feature ?1
+    let ID gis:property-value feature "ID"
+
+    let vertex-lists gis:vertex-lists-of feature
+    let coord-string (word ID ",")  ;; Commence la ligne avec l'ID
+
+    foreach vertex-lists [ ??1 ->
+      let vertices ??1
+      foreach vertices [ ???1 ->
+        let vertex ???1
+        let loc gis:location-of vertex
+
+        if not empty? loc [
+          let x item 0 loc
+          let y item 1 loc
+          set coord-string word coord-string (word x "," y ",")
+        ]
+      ]
+    ]
+
+    ;; Enlève la dernière virgule en trop (optionnel)
+    if length coord-string > 1 [
+      set coord-string substring coord-string 0 (length coord-string - 1)
+    ]
+
+    file-print coord-string
+  ]
+
+  file-close
+end
+
+to export-turtles-coords-and-degrees [file]
+
+  if file-exists? file [
+
+      file-delete file
+
+  ]
+  file-open file
+
+  file-print "id,x,y,degre"
+
+  foreach table:keys my-turtle-table [ ?1 ->
+
+    let key ?1
+
+    let trl table:get my-turtle-table key
+
+    ask trl [
+
+      let id who
+
+      let x xcor
+
+      let y ycor
+
+      let degre count link-neighbors  ; ou count my-links si tu veux tous les liens
+
+      file-print (word id "," x "," y "," degre)
+    ]
+  ]
+
+  file-close
+end
+
 
 
 
@@ -168,10 +520,10 @@ end
 GRAPHICS-WINDOW
 210
 10
-1065
-886
-32
-32
+1063
+864
+-1
+-1
 13.0
 1
 10
@@ -193,10 +545,10 @@ ticks
 30.0
 
 BUTTON
+9
 33
-89
-96
-122
+72
+66
 setup
 setup
 NIL
@@ -210,12 +562,46 @@ NIL
 1
 
 BUTTON
-37
-193
-149
+9
+83
+248
+116
+create-network-from-shp-extractMap
+create-network-from-shp-file \"extractMap/extractMap\"
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+8
+136
+246
+169
+create-network-from-shp--middleMap
+create-network-from-shp-file \"middleMap/middleMap\"
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+9
+189
 226
-load-map-data
-load-map-data \"middleMap/middleMap.shp\"
+222
+create-network-from-shp-FullMap
+create-network-from-shp-file \"FullMap/FullMap\"
 NIL
 1
 T
@@ -227,12 +613,12 @@ NIL
 1
 
 BUTTON
-19
-289
-158
-322
-draw-map-features
-draw-map-features my-dataset
+5
+512
+287
+545
+export-csv-nbrs-sommets-by-lines-middleMap
+export-csv-line-vertices-info \"nbrs-sommets-par_lignes-middleMap.csv\" \"middleMap/middleMap\"
 NIL
 1
 T
@@ -244,12 +630,12 @@ NIL
 1
 
 BUTTON
-53
-156
-117
-190
-draw
-draw
+6
+549
+272
+582
+export-csv-nbrs-sommets-by-lines-FullMap
+export-csv-line-vertices-info \"nbrs-sommets-par_lignes-FullMap.csv\" \"FullMap/FullMap\"
 NIL
 1
 T
@@ -261,12 +647,12 @@ NIL
 1
 
 BUTTON
-90
-393
-198
-426
-load-sommets
-print extract-sommets-with-id \"extractMapSommets/extractMapSommets.shp\"
+6
+474
+294
+507
+export-csv-nbrs-sommets-by-lines-extractMap
+export-csv-line-vertices-info \"nbrs-sommets-par_lignes-extractMap.csv\" \"extractMap/extractMap\"
 NIL
 1
 T
@@ -618,9 +1004,8 @@ false
 0
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
-
 @#$#@#$#@
-NetLogo 5.0.4
+NetLogo 6.4.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
@@ -628,15 +1013,14 @@ NetLogo 5.0.4
 @#$#@#$#@
 default
 0.0
--0.2 0 1.0 0.0
+-0.2 0 0.0 1.0
 0.0 1 1.0 0.0
-0.2 0 1.0 0.0
+0.2 0 0.0 1.0
 link direction
 true
 0
 Line -7500403 true 150 150 90 180
 Line -7500403 true 150 150 210 180
-
 @#$#@#$#@
 0
 @#$#@#$#@
