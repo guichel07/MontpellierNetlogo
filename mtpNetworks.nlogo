@@ -449,7 +449,7 @@ to heatmap
   ]
 end
 to simplify-and-delete-sommets
-  let seuil-distance 50000.0  ;; seuil à ajuster selon les distances
+  let seuil-distance 3.0  ;; Distance max pour simplifier les sommets
   let changements 1
 
   while [changements > 0] [
@@ -460,40 +460,47 @@ to simplify-and-delete-sommets
 
     ask candidats [
       let voisins sort link-neighbors
-      let a item 0 voisins
-      let c item 1 voisins
+      if length voisins = 2 [
+        let a item 0 voisins
+        let c item 1 voisins
 
-      if (a != nobody and c != nobody and a != c) [
-        let d [distance c] of a
-        if d < seuil-distance [
-          ;; Supprimer mes liens
-          ask my-links [ die ]
-          ;; Créer lien direct si nécessaire
-          ask a [
-            if not link-neighbor? c [
-              create-link-with c
+        ;; Vérifier que les deux voisins sont valides et différents
+        if (a != nobody and c != nobody and a != c) [
+          let d distance a + [distance c] of self
+          if d < seuil-distance [
+            ;; Supprimer les liens existants
+            ask my-links [ die ]
+
+            ;; Créer lien direct s’il n’existe pas déjà
+            ask a [
+              if not link-neighbor? c [
+                create-link-with c
+              ]
             ]
+
+            ;; Marquer ce sommet pour suppression
+            set to-die (turtle-set to-die self)
+            set changements changements + 1
           ]
-          ;; Marquer pour suppression
-          set to-die (turtle-set to-die self)
-          set changements changements + 1
         ]
       ]
     ]
 
+    ;; Supprimer les sommets marqués
     ask to-die [ die ]
   ]
 
-  ;; Suppression des sommets isolés
+  ;; Supprimer les sommets isolés
   ask turtles with [count link-neighbors = 0] [
     die
   ]
 
-  print (word "Simplification terminée avec suppression des sommets isolés. Nombre de changements : " changements)
+  show (word "Simplification terminée. Nombre de simplifications : " changements)
 end
 
+
 to simplifier-jusqua-1000-noeuds
-  let seuil-distance 50000.0  ;; seuil à ajuster selon les distances
+  let seuil-distance 1.0  ;; seuil à ajuster selon les distances
   let changements 1
 
   while [changements > 0 and count turtles > 1000] [
@@ -609,6 +616,67 @@ to supprimer-noeuds-degre-1
     die                    ; supprime le noeud (la tortue)
   ]
 end
+to simplify-graph
+  let rayon 0.5  ;; Rayon utilisé pour regrouper les turtles proches (à ajuster selon la densité du graphe)
+  let tous-les-noeuds turtles  ;; Ensemble de toutes les turtles du graphe
+  let traites no-turtles  ;; Ensemble des turtles déjà traitées (initialement vide)
+
+  ;; Tant qu'il existe des turtles non traitées
+  while [any? tous-les-noeuds with [not member? self traites]] [
+    ;; Choisir une turtle non traitée
+    let t one-of tous-les-noeuds with [not member? self traites]
+    let groupe nobody  ;; Initialiser le groupe à vide
+
+    ;; Dans le contexte de t, récupérer toutes les turtles dans le rayon donné
+    ask t [
+      set groupe turtles in-radius rayon
+    ]
+
+    ;; Si le groupe contient plus d'une turtle (donc un cluster à fusionner)
+    ifelse count groupe > 1 [
+      ;; Choisir le turtle central, ici celui avec le plus petit identifiant 'who'
+      let central min-one-of groupe [who]
+
+      ;; Trouver les turtles externes au groupe qui ont des liens avec le groupe
+      let externes turtles with [
+        not member? self groupe and
+        any? link-neighbors with [member? self groupe]
+      ]
+
+      ;; Pour chaque tu+rtle externe, rediriger ses liens vers le central du groupe
+      ask externes [
+        ;; Trouver les voisins dans le groupe (autres que le central)
+        let voisins-groupe link-neighbors with [member? self groupe and self != central]
+
+        ;; Supprimer les liens entre la turtle externe et ces voisins du groupe
+        ask voisins-groupe [
+          let lnk link-with myself
+          if lnk != nobody [ ask lnk [ die ] ]
+        ]
+
+        ;; Créer un lien direct vers le central s'il n'existe pas déjà
+        if not link-neighbor? central [
+          create-link-with central
+        ]
+      ]
+
+      ;; Supprimer tous les turtles du groupe sauf le central
+      ask groupe with [self != central] [ die ]
+
+      ;; Ajouter le central à l'ensemble des turtles traitées
+      set traites (turtle-set traites central)
+    ]
+    [
+      ;; Si le groupe ne contient qu'une seule turtle (pas de fusion), la marquer comme traitée
+      set traites (turtle-set traites t)
+    ]
+  ]
+
+  ;; Supprimer les turtles isolées (sans liens)
+  ask turtles with [count link-neighbors = 0] [ die ]
+
+  print "Fusion des clusters terminée."
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
@@ -706,10 +774,10 @@ NIL
 1
 
 BUTTON
-5
-512
-287
-545
+1420
+226
+1702
+259
 export-csv-nbrs-sommets-by-lines-middleMap
 export-csv-line-vertices-info \"nbrs-sommets-par_lignes-middleMap.csv\" \"middleMap/middleMap\"
 NIL
@@ -723,10 +791,10 @@ NIL
 1
 
 BUTTON
-6
-549
-272
-582
+1072
+397
+1338
+430
 export-csv-nbrs-sommets-by-lines-FullMap
 export-csv-line-vertices-info \"nbrs-sommets-par_lignes-FullMap.csv\" \"FullMap/FullMap\"
 NIL
@@ -740,10 +808,10 @@ NIL
 1
 
 BUTTON
-6
-474
-294
-507
+1056
+346
+1344
+379
 export-csv-nbrs-sommets-by-lines-extractMap
 export-csv-line-vertices-info \"nbrs-sommets-par_lignes-extractMap.csv\" \"extractMap/extractMap\"
 NIL
